@@ -1,0 +1,6 @@
+Copy và ghi đè nhưng file sau vào thư mục mã nguồn kernel linux-xx.xx.xx trước khi buld kernel:
+shm.c => ~linux-xx.xx.xx/ipc/
+syscall.h => ~linux-xx.xx.xx/include/linux/
+syscall_64.tbl => ~linux-xx.xx.xx/arch/x86/entry/syscalls/
+ipc.h => ~linux-xx.xx.xx/include/uapi/linux/
+(Phiên bản kernel mà project này đã sử dụng là linux-6.11.6)
