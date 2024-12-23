@@ -28,12 +28,13 @@ Viết hàm ksys_shmresize() vào trong source code của cơ chế Shared Memor
 
 </details>
 <details>
-  # <summary>Triển khai hàm</summary>
+  <summary>Triển khai hàm</summary>
 - Trước tiên ta phải tải mã nguồn nhân linux về để chỉnh sửa mã nguồn, sau đó sẽ tiến hành build lại kernel sau đó áp dụng kernel mới để kiểm tra hoạt động của hàm mới.
   
 Sau đó ta phải viết thêm hàm shmresize với yêu cầu xác định như trên vào trong file mã nguồn của shared memory ipc là 'ipc/shm.c' để hàm có thể hoạt động. Hàm này sẽ hoạt động ở dưới nhân kernel của linux, vì vậy cần khai báo System call tương ứng và khai báo vào Syscall table để có thể gọi từ user space. Bằng việc sử dụng system call number ta có thể sử dụng trực tiếp hàm từ user space bằng việc khai báo thêm thư việt &lt;syscalls.h&gt; thay vì thêm hàm đó vào các thư viện tiêu chuẩn của C.
   <details>
   <summary># Giải thích chi tiết hơn về một số phần quan trọng</summary>
+
 - **numpages = (new_size + PAGE_SIZE - 1) >> PAGE_SHIFT;**: Đoạn code này tính toán số trang bộ nhớ cần thiết để chứa new_size byte. PAGE_SIZE là kích thước của một trang bộ nhớ (thường là 4KB). PAGE_SHIFT là số bit cần dịch phải để chia cho PAGE_SIZE (ví dụ: nếu PAGE_SIZE là 4096 (2^12), thì PAGE_SHIFT là 12). Việc cộng PAGE_SIZE - 1 trước khi dịch phải đảm bảo rằng kết quả được làm tròn lên. Ví dụ: nếu new_size là 4097 byte, thì cần 2 trang.
     
 - **shmem_kernel_file_setup("SYSV_SHMRESIZE", new_size, 0);**: Hàm này tạo một tệp tin ẩn danh trong kernel, được sử dụng để lưu trữ dữ liệu của shared memory segment. Tham số đầu tiên là tên (chỉ để debug), tham số thứ hai là kích thước, và tham số thứ ba là cờ (0 trong trường hợp này).
