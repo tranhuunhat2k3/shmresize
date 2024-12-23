@@ -28,10 +28,9 @@ Viết hàm ksys_shmresize() vào trong source code của cơ chế Shared Memor
 
 </details>
 <details>
-  <summary># Triển khai hàm</summary>
-Trước tiên ta phải tải mã nguồn nhân linux về để chỉnh sửa mã nguồn, sau đó sẽ tiến hành build lại kernel sau đó áp dụng kernel mới để kiểm tra hoạt động của hàm mới.
-
-Sau đó ta phải viết thêm hàm shmresize với yêu cầu xác định như trên vào trong file mã nguồn của shared memory ipc là ipc/shm.c để hàm có thể hoạt động. Hàm này sẽ hoạt động ở dưới nhân kernel của linux, vì vậy cần khai báo System call tương ứng và khai báo vào Syscall table để có thể gọi từ user space. Bằng việc sử dụng system call number ta có thể sử dụng trực tiếp hàm từ user space bằng việc khai báo thêm thư việt &lt;syscalls.h&gt; thay vì thêm hàm đó vào các thư viện tiêu chuẩn của C.
+  # <summary>Triển khai hàm</summary>
+- Trước tiên ta phải tải mã nguồn nhân linux về để chỉnh sửa mã nguồn, sau đó sẽ tiến hành build lại kernel sau đó áp dụng kernel mới để kiểm tra hoạt động của hàm mới.
+Sau đó ta phải viết thêm hàm shmresize với yêu cầu xác định như trên vào trong file mã nguồn của shared memory ipc là 'ipc/shm.c' để hàm có thể hoạt động. Hàm này sẽ hoạt động ở dưới nhân kernel của linux, vì vậy cần khai báo System call tương ứng và khai báo vào Syscall table để có thể gọi từ user space. Bằng việc sử dụng system call number ta có thể sử dụng trực tiếp hàm từ user space bằng việc khai báo thêm thư việt &lt;syscalls.h&gt; thay vì thêm hàm đó vào các thư viện tiêu chuẩn của C.
   <details>
   <summary># Giải thích chi tiết hơn về một số phần quan trọng</summary>
 - **numpages = (new_size + PAGE_SIZE - 1) >> PAGE_SHIFT;**: Đoạn code này tính toán số trang bộ nhớ cần thiết để chứa new_size byte. PAGE_SIZE là kích thước của một trang bộ nhớ (thường là 4KB). PAGE_SHIFT là số bit cần dịch phải để chia cho PAGE_SIZE (ví dụ: nếu PAGE_SIZE là 4096 (2^12), thì PAGE_SHIFT là 12). Việc cộng PAGE_SIZE - 1 trước khi dịch phải đảm bảo rằng kết quả được làm tròn lên. Ví dụ: nếu new_size là 4097 byte, thì cần 2 trang.
@@ -41,38 +40,12 @@ Sau đó ta phải viết thêm hàm shmresize với yêu cầu xác định nh�
 - **ipc_lock_object và ipc_unlock_object**: Các hàm này dùng để khóa và giải phóng khóa trên đối tượng IPC (trong trường hợp này là shared memory segment), ngăn chặn các truy cập đồng thời gây ra xung đột dữ liệu.
 - **goto unlock;**: Được sử dụng để xử lý lỗi. Khi có lỗi xảy ra, code sẽ nhảy đến nhãn unlock, nơi khóa được giải phóng trước khi hàm trả về lỗi. Điều này rất quan trọng để tránh deadlock.
 </details>
-Sau khi sửa đổi tệp \`shm.c\` để bao gồm chức năng \`shmresize\` mới, cần đảm bảo những thay đổi sau trong các phần khác của mã nguồn nhân Linux để tích hợp đầy đủ chức năng mới:
-
-Define một constant cho ‘shmresize’ system call number. Tệp header này chứa các định nghĩa cho các hoạt động của IPC và đảm bảo rằng các chương trình trong không gian người dùng có quyền truy cập vào mã định danh của system call.
-
-Thêm define (trong include/uapi/linux/ipc.h):
-
-# define SHM_RESIZE 463
-
-Thêm khai báo hàm cho ‘ksys_shmresize’ trong syscalls.h để system call mới được công nhận bởi kernel
-
-Prototype (Khai báo trong include/linux/syscalls.h):
-
-asmlinkage long sys_shmresize(int shmid, size_t new_size);
-
-long ksys_shmresize(int shmid, size_t new_size);
-
-&nbsp;
-
-Đăng ký system call trong các tệp dành riêng cho kiến ​​trúc. Tùy thuộc vào kiến ​​trúc của máy (ví dụ: x86, ARM, v.v.), cập nhật syscall table để đăng ký ‘shmresize’. Điều này cho phép kernel liên kết system call number đến hàm mới.
-
+Sau khi sửa đổi tệp 'shm.c' để bao gồm chức năng 'shmresize' mới, cần đảm bảo những thay đổi sau trong các phần khác của mã nguồn nhân Linux để tích hợp đầy đủ chức năng mới:
+-Define một constant cho ‘shmresize’ system call number (trong include/uapi/linux/ipc.h). Tệp header này chứa các định nghĩa cho các hoạt động của IPC và đảm bảo rằng các chương trình trong không gian người dùng có quyền truy cập vào mã định danh của system call.
+-Thêm khai báo hàm cho ‘ksys_shmresize’ trong syscalls.h (Khai báo trong include/linux/syscalls.h) để system call mới được công nhận bởi kernel
+-Đăng ký system call trong các tệp dành riêng cho kiến ​​trúc. Tùy thuộc vào kiến ​​trúc của máy (ví dụ: x86, ARM, v.v.), cập nhật syscall table để đăng ký ‘shmresize’. Điều này cho phép kernel liên kết system call number đến hàm mới.
 Với cấu trúc x86 : Sửa đổi \`arch/x86/entry/syscalls/syscall_64.tbl\` để thêm entry cho lệnh gọi hệ thống \`shmresize\`. Thêm một dòng mới với các trường tương ứng.
-
-Cập nhật syscall table ( trong arch/x86/entry/syscalls/syscall_64.tbl):
-
-463     common shmresize sys_shmreszie
-
-&nbsp;
-
-Nếu có ý định sử dụng lệnh gọi \`shmresize\` trực tiếp từ các chương trình trong không gian người dùng, cần phải sửa đổi thư viện chuẩn C (như \`glibc\`) để gọi syscall mới này.
-
-Ngoài ra, có thể sử dụng \`syscall()\` từ user space để gọi trực tiếp \`shmresize\`.
-
+-Nếu có ý định sử dụng lệnh gọi \`shmresize\` trực tiếp từ các chương trình trong không gian người dùng, cần phải sửa đổi thư viện chuẩn C (như \`glibc\`) để gọi syscall mới này.
+-Ngoài ra, có thể sử dụng \`syscall()\` từ user space để gọi trực tiếp \`shmresize\`.
 Sau khi chỉnh sửa xong mã nguồn, tiến hành việc build kernel mới theo hướng dẫn ở trên.
-
 </details>
