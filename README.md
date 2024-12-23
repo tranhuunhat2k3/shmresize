@@ -63,3 +63,5 @@ Với cấu trúc x86 : Sửa đổi \`arch/x86/entry/syscalls/syscall_64.tbl\` 
 
 Sau khi chỉnh sửa xong mã nguồn, tiến hành việc build kernel mới theo hướng dẫn ở trên.
 </details>
+## Thực hiện chương trình kiểm thử
+Thực hiện biên dịch hai chương trình trong folder test sau khi build kernel, một chương trình mở rộng và ghi dữ liệu ra vùng nhớ, chương trình thứ hai để đọc dữ liệu từ vùng nhớ đó.
