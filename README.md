@@ -37,13 +37,13 @@ Sau đó ta phải viết thêm hàm shmresize với yêu cầu xác định nh�
 - **numpages = (new_size + PAGE_SIZE - 1) >> PAGE_SHIFT;**: Đoạn code này tính toán số trang bộ nhớ cần thiết để chứa new_size byte. PAGE_SIZE là kích thước của một trang bộ nhớ (thường là 4KB). PAGE_SHIFT là số bit cần dịch phải để chia cho PAGE_SIZE (ví dụ: nếu PAGE_SIZE là 4096 (2^12), thì PAGE_SHIFT là 12). Việc cộng PAGE_SIZE - 1 trước khi dịch phải đảm bảo rằng kết quả được làm tròn lên. Ví dụ: nếu new_size là 4097 byte, thì cần 2 trang.
     
 - **shmem_kernel_file_setup("SYSV_SHMRESIZE", new_size, 0);**: Hàm này tạo một tệp tin ẩn danh trong kernel, được sử dụng để lưu trữ dữ liệu của shared memory segment. Tham số đầu tiên là tên (chỉ để debug), tham số thứ hai là kích thước, và tham số thứ ba là cờ (0 trong trường hợp này).
-- 
+
 - **kernel_read và kernel_write**: Đây là các hàm kernel space để đọc và ghi dữ liệu vào tệp. Chúng tương tự như read và write trong user space, nhưng hoạt động trong ngữ cảnh kernel.
-- 
+
 - **fput**: Hàm này giảm bộ đếm tham chiếu của một đối tượng tệp. Khi bộ đếm tham chiếu đạt 0, tệp sẽ được giải phóng.
-- 
+
 - **ipc_lock_object và ipc_unlock_object**: Các hàm này dùng để khóa và giải phóng khóa trên đối tượng IPC (trong trường hợp này là shared memory segment), ngăn chặn các truy cập đồng thời gây ra xung đột dữ liệu.
-- 
+
 - **goto unlock;**: Được sử dụng để xử lý lỗi. Khi có lỗi xảy ra, code sẽ nhảy đến nhãn unlock, nơi khóa được giải phóng trước khi hàm trả về lỗi. Điều này rất quan trọng để tránh deadlock.
 
 </details>
