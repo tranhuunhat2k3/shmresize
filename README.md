@@ -126,7 +126,7 @@ long ksys_shmresize(int shmid, size_t new_size) {
         }
     }
 
-    // Update the segment's total and size
+    // Update the segment total and size
     ns->shm_tot = ns->shm_tot - (shp->shm_segsz >> PAGE_SHIFT) + numpages;
     shp->shm_segsz = new_size;
 
@@ -166,12 +166,19 @@ SYSCALL_DEFINE2(shmresize, int, shmid, size_t, new_size) {
 Sau khi sửa đổi tệp 'shm.c' để bao gồm chức năng 'shmresize' mới, cần đảm bảo những thay đổi sau trong các phần khác của mã nguồn nhân Linux để tích hợp đầy đủ chức năng mới:
 
 -Define một constant cho ‘shmresize’ system call number (trong include/uapi/linux/ipc.h). Tệp header này chứa các định nghĩa cho các hoạt động của IPC và đảm bảo rằng các chương trình trong không gian người dùng có quyền truy cập vào mã định danh của system call.
-
+```bash
+#define SHM_RESIZE 463
+```
 -Thêm khai báo hàm cho ‘ksys_shmresize’ trong syscalls.h (Khai báo trong include/linux/syscalls.h) để system call mới được công nhận bởi kernel
-
+```bash
+asmlinkage long sys_shmresize(int shmid, size_t new_size); 
+long ksys_shmresize(int shmid, size_t new_size); 
+```
 -Đăng ký system call trong các tệp dành riêng cho kiến ​​trúc. Tùy thuộc vào kiến ​​trúc của máy (ví dụ: x86, ARM, v.v.), cập nhật syscall table để đăng ký ‘shmresize’. Điều này cho phép kernel liên kết system call number đến hàm mới.
 Với cấu trúc x86 : Sửa đổi \`arch/x86/entry/syscalls/syscall_64.tbl\` để thêm entry cho lệnh gọi hệ thống \`shmresize\`. Thêm một dòng mới với các trường tương ứng.
-
+```bash
+463     common	shmresize	sys_shmreszie 
+```
 -Nếu có ý định sử dụng lệnh gọi \`shmresize\` trực tiếp từ các chương trình trong không gian người dùng, cần phải sửa đổi thư viện chuẩn C (như \`glibc\`) để gọi syscall mới này.
 
 -Ngoài ra, có thể sử dụng \`syscall()\` từ user space để gọi trực tiếp \`shmresize\`.
