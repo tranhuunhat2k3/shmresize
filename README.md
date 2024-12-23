@@ -29,9 +29,124 @@ Viết hàm ksys_shmresize() vào trong source code của cơ chế Shared Memor
 </details>
 <details>
   <summary>Triển khai hàm</summary>
-- Trước tiên ta phải tải mã nguồn nhân linux về để chỉnh sửa mã nguồn, sau đó sẽ tiến hành build lại kernel sau đó áp dụng kernel mới để kiểm tra hoạt động của hàm mới.
+Trước tiên ta phải tải mã nguồn nhân linux về để chỉnh sửa mã nguồn, sau đó sẽ tiến hành build lại kernel sau đó áp dụng kernel mới để kiểm tra hoạt động của hàm mới.
   
 Sau đó ta phải viết thêm hàm shmresize với yêu cầu xác định như trên vào trong file mã nguồn của shared memory ipc là 'ipc/shm.c' để hàm có thể hoạt động. Hàm này sẽ hoạt động ở dưới nhân kernel của linux, vì vậy cần khai báo System call tương ứng và khai báo vào Syscall table để có thể gọi từ user space. Bằng việc sử dụng system call number ta có thể sử dụng trực tiếp hàm từ user space bằng việc khai báo thêm thư việt &lt;syscalls.h&gt; thay vì thêm hàm đó vào các thư viện tiêu chuẩn của C.
+```bash
+#include <linux/slab.h>   // For kmalloc and kfree
+#include <linux/mm.h>   // For memory management functions
+#include <linux/hugetlb.h>
+#include <linux/shm.h>
+#include <uapi/linux/shm.h>
+#include <linux/init.h>
+#include <linux/file.h>
+#include <linux/mman.h>
+#include <linux/shmem_fs.h>
+#include <linux/security.h>
+#include <linux/syscalls.h> // For system calls
+#include <linux/audit.h>
+#include <linux/capability.h>
+#include <linux/ptrace.h>
+#include <linux/seq_file.h>
+#include <linux/rwsem.h>
+#include <linux/nsproxy.h>
+#include <linux/mount.h>
+#include <linux/ipc_namespace.h>
+#include <linux/rhashtable.h>
+#include <linux/fs.h> // For file operations
+#include <linux/fcntl.h>
+#include <linux/uaccess.h>
+#include <linux/pagemap.h>
+#include <linux/rmap.h>
+#include <linux/errno.h>
+#include “util.h”
+
+// Function to resize the shared memory segment and keep old data
+long ksys_shmresize(int shmid, size_t new_size) {
+    struct ipc_namespace *ns = current->nsproxy->ipc_ns;
+    struct shmid_kernel *shp;
+    struct file *new_file;
+    loff_t pos = 0;
+    ssize_t err;
+    size_t old_size;
+    size_t numpages = (new_size + PAGE_SIZE - 1) >> PAGE_SHIFT;
+
+    // Basic size validation
+    if (new_size < SHMMIN || new_size > ns->shm_ctlmax)
+        return -EINVAL;
+
+    // Obtain the shared memory segment object and lock it
+    shp = shm_obtain_object_check(ns, shmid);
+    if (IS_ERR(shp))
+        return PTR_ERR(shp);
+
+    ipc_lock_object(&shp->shm_perm);
+
+    // Verify that the new size does not exceed namespace limits
+    if (ns->shm_tot - (shp->shm_segsz >> PAGE_SHIFT) + numpages > ns->shm_ctlall) {
+        err = -ENOSPC;
+        goto unlock;
+    }
+
+    // Create a new file for the resized segment
+    new_file = shmem_kernel_file_setup("SYSV_SHMRESIZE", new_size, 0);
+    if (IS_ERR(new_file)) {
+        err = PTR_ERR(new_file);
+        goto unlock;
+    }
+
+    // Allocate a temporary buffer to hold old data for copying
+    old_size = shp->shm_segsz;
+    if (old_size > 0) {
+        char *buffer = kmalloc(old_size, GFP_KERNEL);
+        if (!buffer) {
+            err = -ENOMEM;
+            fput(new_file);
+            goto unlock;
+        }
+
+        // Read data from the old file into the buffer
+        err = kernel_read(shp->shm_file, buffer, old_size, &pos);
+        if (err < 0) {
+            kfree(buffer);
+            fput(new_file);
+            goto unlock;
+        }
+
+        // Reset position for the new file
+        pos = 0;
+
+        // Write data from the buffer to the new file
+        err = kernel_write(new_file, buffer, old_size, &pos);
+        kfree(buffer);
+
+        if (err < 0) {
+            fput(new_file);
+            goto unlock;
+        }
+    }
+
+    // Update the segment's total and size
+    ns->shm_tot = ns->shm_tot - (shp->shm_segsz >> PAGE_SHIFT) + numpages;
+    shp->shm_segsz = new_size;
+
+    // Release the old file and replace it with the new one
+    fput(shp->shm_file);
+    shp->shm_file = new_file;
+
+    err = 0;  // Success
+
+unlock:
+    ipc_unlock_object(&shp->shm_perm);
+    return err;
+}
+
+// System call definition for user-space access
+SYSCALL_DEFINE2(shmresize, int, shmid, size_t, new_size) {
+    return ksys_shmresize(shmid, new_size);
+}
+
+```
   <details>
   <summary># Giải thích chi tiết hơn về một số phần quan trọng</summary>
 
